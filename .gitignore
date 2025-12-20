@@ -14,8 +14,6 @@ local.properties
 # Google Services
 google-services.json
 
-# VS Code
-.vscode/
 
 # Artifacts
 *.apk

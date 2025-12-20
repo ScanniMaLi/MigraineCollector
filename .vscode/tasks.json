@@ -1,0 +1,32 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "gradle: assembleDebug",
+            "type": "shell",
+            "command": "./gradlew assembleDebug",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "installDebug",
+            "type": "shell",
+            "command": "./gradlew installDebug",
+            "group": "build",
+            "dependsOn": "gradle: assembleDebug"
+        },
+        {
+            "label": "runApp",
+            "type": "shell",
+            "command": "adb shell am start -n com.example.migrainecollector/.MainActivity",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        }
+    ]
+}
