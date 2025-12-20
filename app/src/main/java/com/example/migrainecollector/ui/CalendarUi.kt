@@ -14,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
@@ -27,7 +29,7 @@ import java.util.Locale
 
 @Composable
 fun CalendarScreen(
-    migraineDays: Set<LocalDate>,
+    migraineData: Map<LocalDate, List<Int>>,
     markerColor: Color,
     onDayClick: (LocalDate) -> Unit,
     onColorSelected: (Color) -> Unit,
@@ -35,19 +37,19 @@ fun CalendarScreen(
 ) {
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
     // Statistics logic
-    val migrainesThisMonth = migraineDays.count { YearMonth.from(it) == currentMonth }
-    val migrainesThisYear = migraineDays.count { it.year == currentMonth.year }
+    val migrainesThisMonth = migraineData.keys.count { YearMonth.from(it) == currentMonth }
+    val migrainesThisYear = migraineData.keys.count { it.year == currentMonth.year }
     
     // Average calculation
-    val averagePerMonth = remember(migraineDays) {
-        if (migraineDays.isEmpty()) 0f else {
-            val firstDate = migraineDays.minOrNull() ?: LocalDate.now()
-            val lastDate = migraineDays.maxOrNull() ?: LocalDate.now()
+    val averagePerMonth = remember(migraineData) {
+        if (migraineData.isEmpty()) 0f else {
+            val firstDate = migraineData.keys.minOrNull() ?: LocalDate.now()
+            val lastDate = migraineData.keys.maxOrNull() ?: LocalDate.now()
             val startMonth = YearMonth.from(firstDate)
             val endMonth = YearMonth.from(lastDate)
             // Determine total months spanned
             val monthsDiff = (endMonth.year - startMonth.year) * 12 + (endMonth.monthValue - startMonth.monthValue) + 1
-            migraineDays.size.toFloat() / monthsDiff.coerceAtLeast(1)
+            migraineData.size.toFloat() / monthsDiff.coerceAtLeast(1)
         }
     }
 
@@ -74,8 +76,7 @@ fun CalendarScreen(
 
         MonthGrid(
             yearMonth = currentMonth,
-            migraineDays = migraineDays,
-            markerColor = markerColor,
+            migraineData = migraineData,
             onDayClick = onDayClick
         )
         
@@ -188,7 +189,7 @@ fun DaysOfWeekHeader() {
                 modifier = Modifier
                     .weight(1f)
                     .padding(8.dp),
-                textAlign = TextAlign.Center,
+                    textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -198,8 +199,7 @@ fun DaysOfWeekHeader() {
 @Composable
 fun MonthGrid(
     yearMonth: YearMonth,
-    migraineDays: Set<LocalDate>,
-    markerColor: Color,
+    migraineData: Map<LocalDate, List<Int>>,
     onDayClick: (LocalDate) -> Unit
 ) {
     val daysInMonth = yearMonth.lengthOfMonth()
@@ -219,12 +219,11 @@ fun MonthGrid(
                     
                     if (dayOfMonth in 1..daysInMonth) {
                         val date = yearMonth.atDay(dayOfMonth)
-                        val isMigraine = migraineDays.contains(date)
+                        val colors = migraineData[date] ?: emptyList()
                         
                         DayCell(
                             date = date,
-                            isMigraine = isMigraine,
-                            markerColor = markerColor,
+                            colors = colors,
                             onClick = { onDayClick(date) },
                             modifier = Modifier.weight(1f)
                         )
@@ -240,26 +239,32 @@ fun MonthGrid(
 @Composable
 fun DayCell(
     date: LocalDate,
-    isMigraine: Boolean,
-    markerColor: Color,
+    colors: List<Int>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val backgroundModifier = when {
+        colors.isEmpty() -> Modifier.background(Color.Transparent, CircleShape)
+        colors.size == 1 -> Modifier.background(Color(colors[0]), CircleShape)
+        else -> Modifier.background(
+            brush = Brush.linearGradient(
+                colors = colors.map { Color(it) },
+                start = Offset.Zero,
+                end = Offset.Infinite
+            ),
+            shape = CircleShape
+        )
+    }
+
     Box(
         modifier = modifier
             .aspectRatio(1f) // Square cells
             .padding(4.dp)
             .clickable(onClick = onClick)
-            .background(
-                color = if (isMigraine) markerColor else Color.Transparent,
-                shape = CircleShape
-            ),
+            .then(backgroundModifier),
         contentAlignment = Alignment.Center
     ) {
-        // Contrast calculation could be better, but simple logic for now
-        // If color is dark, text white, else black. But let's keep it simple or use Material color helpers if possible.
-        // For simplicity, we'll assume most marker colors are dark enough for white text or check luminance
-        val textColor = if (isMigraine) Color.White else MaterialTheme.colorScheme.onSurface
+        val textColor = if (colors.isNotEmpty()) Color.White else MaterialTheme.colorScheme.onSurface
         
         Text(
             text = date.dayOfMonth.toString(),

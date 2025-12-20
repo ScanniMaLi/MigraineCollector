@@ -26,12 +26,12 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     modifier = Modifier.fillMaxSize()
                 ) { innerPadding ->
-                    val migraineDays by repository.migraineDays.collectAsState()
+                    val migraineData by repository.migraineData.collectAsState()
                     val markerColorInt by repository.markerColor.collectAsState()
                     val markerColor = Color(markerColorInt)
                     
                     CalendarScreen(
-                        migraineDays = migraineDays,
+                        migraineData = migraineData,
                         markerColor = markerColor,
                         onDayClick = { date -> repository.toggleDate(date) },
                         onColorSelected = { color -> repository.saveColor(color.toArgb()) },

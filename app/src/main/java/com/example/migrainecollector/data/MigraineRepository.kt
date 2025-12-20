@@ -12,32 +12,92 @@ class MigraineRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("migraine_data", Context.MODE_PRIVATE)
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
-    private val _migraineDays = MutableStateFlow<Set<LocalDate>>(loadDates())
-    val migraineDays: StateFlow<Set<LocalDate>> = _migraineDays.asStateFlow()
+    // Map of Date -> List of ColorInts
+    private val _migraineData = MutableStateFlow<Map<LocalDate, List<Int>>>(loadData())
+    val migraineData: StateFlow<Map<LocalDate, List<Int>>> = _migraineData.asStateFlow()
 
-    private val _markerColor = MutableStateFlow<Int>(loadColor())
+    private val _markerColor = MutableStateFlow<Int>(loadGlobalColor())
     val markerColor: StateFlow<Int> = _markerColor.asStateFlow()
 
-    private fun loadDates(): Set<LocalDate> {
-        val stringSet = prefs.getStringSet("dates", emptySet()) ?: emptySet()
-        return stringSet.mapNotNull {
-            try {
-                LocalDate.parse(it, dateFormatter)
-            } catch (e: Exception) {
-                null
+    private fun loadData(): Map<LocalDate, List<Int>> {
+        val entriesSet = prefs.getStringSet("migraine_entries", null)
+        
+        if (entriesSet != null) {
+            // Load new format: "YYYY-MM-DD|COLOR1,COLOR2"
+            return entriesSet.mapNotNull { entry ->
+                try {
+                    val parts = entry.split("|")
+                    if (parts.size == 2) {
+                        val date = LocalDate.parse(parts[0], dateFormatter)
+                        val colorStrings = parts[1].split(",")
+                        val colors = colorStrings.map { it.toInt() }
+                        date to colors
+                    } else {
+                        // Fallback/Migration for single color int format if mixed?
+                        // Assuming new format is strict, but let's handle single int existing
+                        null
+                    }
+                } catch (e: Exception) {
+                    // Try parsing as legacy "YYYY-MM-DD|INT" just in case we are reading a file 
+                    // that was saved in the previous step (single int)
+                    try {
+                         val parts = entry.split("|")
+                         val date = LocalDate.parse(parts[0], dateFormatter)
+                         val color = parts[1].toInt()
+                         date to listOf(color)
+                    } catch (e2: Exception) {
+                        null
+                    }
+                }
+            }.toMap()
+        } else {
+            // Legacy Migration (from Set<Date>)
+            val oldDates = prefs.getStringSet("dates", emptySet()) ?: emptySet()
+            val currentColor = loadGlobalColor()
+            val migratedMap = oldDates.mapNotNull {
+                try {
+                    LocalDate.parse(it, dateFormatter) to listOf(currentColor)
+                } catch (e: Exception) {
+                    null
+                }
+            }.toMap()
+            
+            if (migratedMap.isNotEmpty()) {
+                saveData(migratedMap)
             }
-        }.toSet()
+            return migratedMap
+        }
     }
 
     fun toggleDate(date: LocalDate) {
-        val current = _migraineDays.value.toMutableSet()
-        if (current.contains(date)) {
-            current.remove(date)
+        val currentMap = _migraineData.value.toMutableMap()
+        val currentColors = currentMap[date]?.toMutableList() ?: mutableListOf()
+        val selectedColor = _markerColor.value
+
+        if (currentColors.contains(selectedColor)) {
+            // Remove this color
+            currentColors.remove(selectedColor)
         } else {
-            current.add(date)
+            // Add color logic
+            if (currentColors.size < 2) {
+                currentColors.add(selectedColor)
+            } else {
+                // Already has 2 colors. Replace the second one (index 1) to allow changing gradient end.
+                // Or user might want to replace the first. But typical flow is change 'end'.
+                if (currentColors.size >= 2) {
+                    currentColors[1] = selectedColor
+                }
+            }
         }
-        _migraineDays.value = current
-        saveDates(current)
+
+        if (currentColors.isEmpty()) {
+            currentMap.remove(date)
+        } else {
+            currentMap[date] = currentColors
+        }
+
+        _migraineData.value = currentMap
+        saveData(currentMap)
     }
 
     fun saveColor(color: Int) {
@@ -47,20 +107,18 @@ class MigraineRepository(private val context: Context) {
         }
     }
 
-    private fun loadColor(): Int {
-        // Default to undefined/red if not saved. Using a default consistent with UI.
-        // We will default to Error Container color in UI if this is 0 or check explicitly
-        // But it's better to store ARGB. Let's assume passed Int is ARGB.
-        // Defaulting to 0xFFB3261E (Standard Red 600ish) conceptually, but cleaner to return a default
-        // and let UI decide or picking a concrete default here.
-        // Let's use a standard Red equivalent: 0xFFFF5252
+    private fun loadGlobalColor(): Int {
         return prefs.getInt("marker_color", 0xFFFF5252.toInt())
     }
 
-    private fun saveDates(dates: Set<LocalDate>) {
-        val stringSet = dates.map { it.format(dateFormatter) }.toSet()
+    private fun saveData(data: Map<LocalDate, List<Int>>) {
+        val stringSet = data.map { (date, colors) ->
+            val colorString = colors.joinToString(",")
+            "${date.format(dateFormatter)}|$colorString"
+        }.toSet()
+        
         prefs.edit {
-            putStringSet("dates", stringSet)
+            putStringSet("migraine_entries", stringSet)
         }
     }
 }
