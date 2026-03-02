@@ -1,20 +1,38 @@
-*.iml
-.gradle
-.idea
-/local.properties
-/.idea/workspace.xml
-/.idea/libraries
-.DS_Store
+# Standard Android Exclusions
+
+# Gradle files
+.gradle/
 build/
-/captures
-.externalNativeBuild
-.cxx
+
+# Local configuration file (sdk path, etc)
 local.properties
 
-# Google Services
-google-services.json
+# Log/OS Files
+*.log
+.DS_Store
 
-
-# Artifacts
+# Android Studio generated files and folders
+captures/
+.externalNativeBuild/
+.cxx/
+*.aab
 *.apk
 *.ap_
+output-metadata.json
+
+# IntelliJ
+*.iml
+.idea/
+misc.xml
+deploymentTargetDropDown.xml
+render.experimental.xml
+
+# Keystore files
+*.jks
+*.keystore
+
+# Google Services (e.g. APIs or Firebase)
+google-services.json
+
+# Android Profiling
+*.hprof
